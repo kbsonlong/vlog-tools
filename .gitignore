@@ -1,6 +1,5 @@
 # Binaries
 bin/
-vlog-tools
 
 # Object files
 *.o
