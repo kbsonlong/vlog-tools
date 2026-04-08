@@ -1,0 +1,24 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: vlstorage
+spec:
+  template:
+    spec:
+      containers:
+      - name: vlstorage
+        volumeMounts:
+        - name: data
+          mountPath: /var/lib/victorialogs
+      - name: vlog-tools-archiver
+        image: your-registry/vlog-tools:latest
+        args: ["serve", "archive", "--every=24h", "--offset-days=1", "--node-name=$(POD_NAME)", "--source-path=/var/lib/victorialogs"]
+        env:
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        volumeMounts:
+        - name: data
+          mountPath: /var/lib/victorialogs
+      volumes: []

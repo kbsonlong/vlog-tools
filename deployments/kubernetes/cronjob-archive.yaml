@@ -1,0 +1,32 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: vlog-archive
+  namespace: monitoring
+spec:
+  schedule: "0 2 * * *"  # 每天凌晨 2 点执行
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          serviceAccountName: vlog-tools
+          containers:
+          - name: archiver
+            image: your-registry/vlog-tools:latest
+            command: ["vlog-tools", "serve", "archive"]
+            args: ["--once"]
+            volumeMounts:
+            - name: hot-node-0-data
+              mountPath: /tmp/vlog-data/node-0
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+          volumes:
+          - name: hot-node-0-data
+            persistentVolumeClaim:
+              claimName: vlstorage-data-vlstorage-0
+              readOnly: true
+          - name: tmp
+            emptyDir:
+              sizeLimit: 5Gi
+          restartPolicy: OnFailure

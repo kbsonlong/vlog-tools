@@ -1,0 +1,26 @@
+# Binaries
+bin/
+vlog-tools
+
+# Object files
+*.o
+*.a
+*.so
+
+# Coverage files
+*.out
+
+# Editor/IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS specific
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Temp files
+tmp/
+temp/

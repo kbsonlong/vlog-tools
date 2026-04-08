@@ -1,0 +1,39 @@
+global:
+  environment: "dev"
+
+hot_nodes: []
+
+cold_node:
+  name: "cold-node-0"
+  url: "http://cold-node-0:8428"
+  local_data_path: "/tmp/vlog-data/cold-node"
+
+s3:
+  endpoint: "localhost:9000"
+  bucket: "vlog-archive"
+  region: "us-east-1"
+  prefix: ""
+  access_key: "minioadmin"
+  secret_key: "minioadmin"
+
+archive:
+  concurrency: 2
+  every: "24h"
+  partition_offset_days: 1
+  update_metadata: false
+  node_name: ""
+  source_data_path: "/var/lib/victorialogs"
+
+pull:
+  local_data_path: "/tmp/vlog-data/cold-node"
+
+cache:
+  max_size_gb: 50
+  retention_days: 30
+
+logging:
+  level: "info"
+
+metrics:
+  enabled: true
+  port: "9090"
