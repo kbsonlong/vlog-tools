@@ -1,0 +1,12 @@
+s3:
+  endpoint: "minio:9000"     # 或 s3.amazonaws.com / 你的对象存储地址
+  bucket: "vlog-archive"
+  region: "us-east-1"
+  access_key: "minioadmin"
+  secret_key: "minioadmin"
+
+archive:
+  update_metadata: false     # sidecar 强烈建议 false
+  cron: "0 2 * * *"
+  partition_offset_days: 1
+  source_data_path: "/var/lib/victorialogs"

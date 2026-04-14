@@ -2,11 +2,13 @@ package archive
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"sync"
 	"time"
 
+	"github.com/rclone/rclone/fs"
 	"github.com/vlog-tools/vlog-tools/internal/config"
 	"github.com/vlog-tools/vlog-tools/internal/metadata"
 	"github.com/vlog-tools/vlog-tools/internal/storage"
@@ -118,11 +120,30 @@ func (a *Archiver) archiveFromNode(ctx context.Context, node config.NodeConfig, 
 	}
 
 	s3Path := fmt.Sprintf("nodes/%s/%s", node.Name, partition)
+	successMarker := fmt.Sprintf("%s/_SUCCESS", s3Path)
+
+	if _, err := a.storage.GetMetadata(ctx, successMarker); err == nil {
+		a.logger.Info("Partition already archived, skipping",
+			zap.String("node", node.Name),
+			zap.String("partition", partition))
+		return &NodeArchiveResult{
+			NodeName:  node.Name,
+			SizeBytes: 0,
+			Duration:  time.Since(start),
+		}, nil
+	} else if !errors.Is(err, fs.ErrorObjectNotFound) {
+		a.logger.Warn("Failed to check archive marker, continuing",
+			zap.String("node", node.Name),
+			zap.String("partition", partition),
+			zap.Error(err))
+	}
 
 	uploadResult, err := a.storage.CopyToS3(ctx, sourcePath, s3Path)
 	if err != nil {
 		return nil, err
 	}
+
+	_ = a.storage.PutMetadata(ctx, successMarker, []byte(time.Now().UTC().Format(time.RFC3339)))
 
 	duration := time.Since(start)
 	a.logger.Info("Node archive completed",

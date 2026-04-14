@@ -5,6 +5,7 @@ go 1.26.1
 require (
 	github.com/hashicorp/go-retryablehttp v0.7.8
 	github.com/rclone/rclone v1.73.3
+	github.com/robfig/cron/v3 v3.0.1
 	github.com/spf13/cobra v1.10.2
 	go.uber.org/zap v1.27.1
 	gopkg.in/yaml.v3 v3.0.1

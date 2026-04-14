@@ -12,7 +12,7 @@ spec:
           mountPath: /var/lib/victorialogs
       - name: vlog-tools-archiver
         image: your-registry/vlog-tools:latest
-        args: ["serve", "archive", "--every=24h", "--offset-days=1", "--node-name=$(POD_NAME)", "--source-path=/var/lib/victorialogs"]
+        args: ["serve", "archive", "--cron=0 2 * * *", "--offset-days=1", "--source-path=/var/lib/victorialogs"]
         env:
         - name: POD_NAME
           valueFrom:
@@ -21,4 +21,6 @@ spec:
         volumeMounts:
         - name: data
           mountPath: /var/lib/victorialogs
+        - name: config
+          mountPath: /etc/vlog-tools
       volumes: []

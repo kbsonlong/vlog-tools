@@ -19,6 +19,7 @@ s3:
 archive:
   concurrency: 2
   every: "24h"
+  cron: "0 2 * * *"
   partition_offset_days: 1
   update_metadata: false
   node_name: ""

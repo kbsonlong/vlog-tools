@@ -41,6 +41,7 @@ type S3Config struct {
 type ArchiveConfig struct {
 	Concurrency         int    `yaml:"concurrency"`
 	Every               string `yaml:"every"`
+	Cron                string `yaml:"cron"`
 	PartitionOffsetDays int    `yaml:"partition_offset_days"`
 	UpdateMetadata      bool   `yaml:"update_metadata"`
 	NodeName            string `yaml:"node_name"`

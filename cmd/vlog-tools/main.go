@@ -105,6 +105,7 @@ func main() {
 			defer logger.Sync()
 
 			everyStr, _ := cmd.Flags().GetString("every")
+			cronSpec, _ := cmd.Flags().GetString("cron")
 			offsetDays, _ := cmd.Flags().GetInt("offset-days")
 			once, _ := cmd.Flags().GetBool("once")
 			nodeName, _ := cmd.Flags().GetString("node-name")
@@ -117,6 +118,10 @@ func main() {
 					return err
 				}
 				every = d
+			}
+
+			if cronSpec == "" {
+				cronSpec = cfg.Archive.Cron
 			}
 
 			if nodeName == "" {
@@ -143,12 +148,14 @@ func main() {
 			defer stop()
 			return archive.Run(ctx, logger, archiver, archive.RunOptions{
 				Every:               every,
+				Cron:                cronSpec,
 				PartitionOffsetDays: offsetDays,
 				Once:                once,
 			})
 		},
 	}
 	serveArchiveCmd.Flags().String("every", "", "archive interval, e.g. 24h")
+	serveArchiveCmd.Flags().String("cron", "", "cron expression, e.g. \"0 2 * * *\"")
 	serveArchiveCmd.Flags().Int("offset-days", 1, "partition offset days, e.g. 1 for yesterday")
 	serveArchiveCmd.Flags().Bool("once", false, "run once and exit")
 	serveArchiveCmd.Flags().String("node-name", "", "sidecar node name")

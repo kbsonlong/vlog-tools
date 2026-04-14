@@ -34,3 +34,17 @@ docker-compose up -d
 
 - 示例片段: [statefulset-sidecar-archive-snippet.yaml](file:///Users/zengshenglong/Code/GoWorkSpace/vlog-backup/vlog-tools/deployments/kubernetes/statefulset-sidecar-archive-snippet.yaml)
 - CronJob 场景: [cronjob-archive.yaml](file:///Users/zengshenglong/Code/GoWorkSpace/vlog-backup/vlog-tools/deployments/kubernetes/cronjob-archive.yaml)
+
+## 用 cron 管理 sidecar 归档
+
+更直观的方式是使用 Go 的 cron 库，通过 cron 表达式控制归档时间点（避免 `--every=24h` 因重启导致的重复归档抖动）。同时每个分区归档成功后会在 S3 写入 `_SUCCESS` 标记，重复触发会自动跳过。
+
+示例参数（每天 02:00 归档昨天分区）：
+
+```bash
+vlog-tools serve archive \
+  --cron="0 2 * * *" \
+  --offset-days=1 \
+  --source-path=/var/lib/victorialogs \
+  --config=/etc/vlog-tools/config.yaml
+```
