@@ -3,6 +3,9 @@ FROM --platform=$BUILDPLATFORM golang:1.26.1 AS builder
 ARG TARGETOS
 ARG TARGETARCH
 ARG TARGETVARIANT
+ARG VERSION=dev
+ARG COMMIT=unknown
+ARG BUILD_TIME=unknown
 
 WORKDIR /app
 COPY go.mod go.sum ./
@@ -12,7 +15,9 @@ COPY . .
 RUN set -eux; \
     GOARM=""; \
     if [ "${TARGETARCH}" = "arm" ] && [ -n "${TARGETVARIANT}" ]; then GOARM="${TARGETVARIANT#v}"; fi; \
-    CGO_ENABLED=0 GOOS="${TARGETOS}" GOARCH="${TARGETARCH}" GOARM="${GOARM}" go build -o /vlog-tools ./cmd/vlog-tools
+    CGO_ENABLED=0 GOOS="${TARGETOS}" GOARCH="${TARGETARCH}" GOARM="${GOARM}" go build \
+      -ldflags "-X main.Version=${VERSION} -X main.Commit=${COMMIT} -X main.BuildTime=${BUILD_TIME}" \
+      -o /vlog-tools ./cmd/vlog-tools
 
 FROM --platform=$TARGETPLATFORM alpine:latest
 RUN apk --no-cache add ca-certificates tzdata

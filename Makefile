@@ -2,9 +2,12 @@
 
 # 变量
 BINARY_NAME=vlog-tools
-VERSION=$(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
+IMAGE_REPO?=vlog-tools
+PLATFORMS?=linux/amd64,linux/arm64
+COMMIT=$(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+VERSION=$(shell git describe --tags --always --dirty 2>/dev/null || echo ${COMMIT})
 BUILD_TIME=$(shell date -u '+%Y-%m-%d_%H:%M:%S')
-LDFLAGS=-ldflags "-X main.Version=${VERSION} -X main.BuildTime=${BUILD_TIME}"
+LDFLAGS=-ldflags "-X main.Version=${VERSION} -X main.Commit=${COMMIT} -X main.BuildTime=${BUILD_TIME}"
 
 # 构建
 build:
@@ -35,6 +38,26 @@ run:
 # Docker
 docker-build:
 	docker build -t vlog-tools:latest -f deployments/docker/Dockerfile.tools .
+
+docker-buildx:
+	docker buildx build \
+		--platform ${PLATFORMS} \
+		-f deployments/docker/Dockerfile.tools \
+		--build-arg VERSION=${VERSION} \
+		--build-arg COMMIT=${COMMIT} \
+		--build-arg BUILD_TIME=${BUILD_TIME} \
+		-t ${IMAGE_REPO}:${VERSION} \
+		--load .
+
+docker-buildx-push:
+	docker buildx build \
+		--platform ${PLATFORMS} \
+		-f deployments/docker/Dockerfile.tools \
+		--build-arg VERSION=${VERSION} \
+		--build-arg COMMIT=${COMMIT} \
+		--build-arg BUILD_TIME=${BUILD_TIME} \
+		-t ${IMAGE_REPO}:${VERSION} \
+		--push .
 
 # 清理
 clean:

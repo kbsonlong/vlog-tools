@@ -23,6 +23,7 @@ import (
 
 var (
 	Version    = "dev"
+	Commit     = "unknown"
 	BuildTime  = "unknown"
 	configFile string
 )
@@ -166,7 +167,7 @@ func main() {
 		Use:   "version",
 		Short: "Show version",
 		Run: func(cmd *cobra.Command, args []string) {
-			fmt.Printf("vlog-tools %s (built at %s)\n", Version, BuildTime)
+			fmt.Printf("vlog-tools %s (%s) built at %s\n", Version, Commit, BuildTime)
 		},
 	}
 
