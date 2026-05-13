@@ -17,6 +17,10 @@ s3:
   env_auth: false
   provider: ""
   force_path_style: false
+  use_unsigned_payload:
+  http_proxy: ""
+  rclone_log_level: ""
+  rclone_dump: ""
   access_key: "minioadmin"
   secret_key: "minioadmin"
 

@@ -16,6 +16,28 @@ import (
 	"github.com/vlog-tools/vlog-tools/pkg/rclone"
 )
 
+func quoteConnValue(v string) string {
+	if v == "" {
+		return v
+	}
+	if strings.ContainsAny(v, ":, \"'") {
+		return `"` + strings.ReplaceAll(v, `"`, `""`) + `"`
+	}
+	return v
+}
+
+func joinParts(parts ...string) string {
+	var out []string
+	for _, p := range parts {
+		p = strings.Trim(p, "/")
+		if p == "" {
+			continue
+		}
+		out = append(out, p)
+	}
+	return strings.Join(out, "/")
+}
+
 type S3Storage struct {
 	bucket string
 	prefix string
@@ -35,56 +57,61 @@ func NewS3Storage(cfg *config.S3Config, logger *zap.Logger) (*S3Storage, error) 
 }
 
 func (s *S3Storage) getS3Fs(ctx context.Context, path string) (fs.Fs, error) {
-	s3Path := fmt.Sprintf(":s3:%s/%s", s.bucket, path)
-	if s.prefix != "" {
-		s3Path = fmt.Sprintf(":s3:%s/%s/%s", s.bucket, s.prefix, path)
-	}
-
 	useSSL := true
 	if s.cfg.UseSSL != nil {
 		useSSL = *s.cfg.UseSSL
 	}
-	endpoint := s.cfg.Endpoint
-	if strings.HasPrefix(endpoint, "http://") {
-		endpoint = strings.TrimPrefix(endpoint, "http://")
-		if s.cfg.UseSSL == nil {
-			useSSL = false
-		}
-	}
-	if strings.HasPrefix(endpoint, "https://") {
-		endpoint = strings.TrimPrefix(endpoint, "https://")
-		if s.cfg.UseSSL == nil {
-			useSSL = true
+	endpoint := strings.TrimSpace(s.cfg.Endpoint)
+	if endpoint != "" && !strings.HasPrefix(endpoint, "http://") && !strings.HasPrefix(endpoint, "https://") {
+		if useSSL {
+			endpoint = "https://" + endpoint
+		} else {
+			endpoint = "http://" + endpoint
 		}
 	}
 
 	var opts []string
 	opts = append(opts, fmt.Sprintf("env_auth=%t", s.cfg.EnvAuth))
-	opts = append(opts, fmt.Sprintf("use_ssl=%t", useSSL))
 	if !s.cfg.EnvAuth {
 		opts = append(opts,
-			fmt.Sprintf("access_key_id=%s", s.cfg.AccessKey),
-			fmt.Sprintf("secret_access_key=%s", s.cfg.SecretKey),
+			fmt.Sprintf("access_key_id=%s", quoteConnValue(s.cfg.AccessKey)),
+			fmt.Sprintf("secret_access_key=%s", quoteConnValue(s.cfg.SecretKey)),
 		)
 	}
 	if endpoint != "" {
-		opts = append(opts, fmt.Sprintf("endpoint=%s", endpoint))
+		opts = append(opts, fmt.Sprintf("endpoint=%s", quoteConnValue(endpoint)))
 	}
 	if s.cfg.Region != "" {
-		opts = append(opts, fmt.Sprintf("region=%s", s.cfg.Region))
+		opts = append(opts, fmt.Sprintf("region=%s", quoteConnValue(s.cfg.Region)))
 	}
-	if s.cfg.Provider != "" {
-		opts = append(opts, fmt.Sprintf("provider=%s", s.cfg.Provider))
+	provider := s.cfg.Provider
+	if provider == "" {
+		provider = "AWS"
 	}
+	opts = append(opts, fmt.Sprintf("provider=%s", quoteConnValue(provider)))
 	if s.cfg.ForcePathStyle {
 		opts = append(opts, "force_path_style=true")
 	}
-	s3Path += "," + strings.Join(opts, ",") + ":"
+	if s.cfg.UseUnsignedPayload != nil {
+		opts = append(opts, fmt.Sprintf("use_unsigned_payload=%t", *s.cfg.UseUnsignedPayload))
+	}
+	if s.cfg.HTTPProxy != "" {
+		opts = append(opts, fmt.Sprintf("override.http_proxy=%s", quoteConnValue(s.cfg.HTTPProxy)))
+	}
+	if s.cfg.RcloneLogLevel != "" {
+		opts = append(opts, fmt.Sprintf("global.log_level=%s", quoteConnValue(s.cfg.RcloneLogLevel)))
+	}
+	if s.cfg.RcloneDump != "" {
+		opts = append(opts, fmt.Sprintf("global.dump=%s", quoteConnValue(s.cfg.RcloneDump)))
+	}
+
+	fsPath := joinParts(s.bucket, s.prefix, path)
+	s3Path := fmt.Sprintf(":s3,%s:%s", strings.Join(opts, ","), fsPath)
 
 	f, err := fs.NewFs(ctx, s3Path)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create s3 fs (bucket=%s prefix=%s path=%s endpoint=%s region=%s env_auth=%t use_ssl=%t provider=%s force_path_style=%t): %w",
-			s.bucket, s.prefix, path, endpoint, s.cfg.Region, s.cfg.EnvAuth, useSSL, s.cfg.Provider, s.cfg.ForcePathStyle, err)
+			s.bucket, s.prefix, path, endpoint, s.cfg.Region, s.cfg.EnvAuth, useSSL, provider, s.cfg.ForcePathStyle, err)
 	}
 	return f, nil
 }

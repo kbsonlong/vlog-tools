@@ -25,21 +25,25 @@ type GlobalConfig struct {
 
 type NodeConfig struct {
 	Name          string `yaml:"name"`
-	URL           string `yaml:"url"`             // VictoriaLogs HTTP API endpoint (可选)
-	LocalDataPath string `yaml:"local_data_path"` // 本地数据路径（PVC 挂载或本地路径）
+	URL           string `yaml:"url"`
+	LocalDataPath string `yaml:"local_data_path"`
 }
 
 type S3Config struct {
-	Endpoint       string `yaml:"endpoint"`
-	Bucket         string `yaml:"bucket"`
-	Region         string `yaml:"region"`
-	Prefix         string `yaml:"prefix"`
-	UseSSL         *bool  `yaml:"use_ssl"`
-	EnvAuth        bool   `yaml:"env_auth"`
-	Provider       string `yaml:"provider"`
-	ForcePathStyle bool   `yaml:"force_path_style"`
-	AccessKey      string `yaml:"access_key"`
-	SecretKey      string `yaml:"secret_key"`
+	Endpoint           string `yaml:"endpoint"`
+	Bucket             string `yaml:"bucket"`
+	Region             string `yaml:"region"`
+	Prefix             string `yaml:"prefix"`
+	UseSSL             *bool  `yaml:"use_ssl"`
+	EnvAuth            bool   `yaml:"env_auth"`
+	Provider           string `yaml:"provider"`
+	ForcePathStyle     bool   `yaml:"force_path_style"`
+	UseUnsignedPayload *bool  `yaml:"use_unsigned_payload"`
+	HTTPProxy          string `yaml:"http_proxy"`
+	RcloneLogLevel     string `yaml:"rclone_log_level"`
+	RcloneDump         string `yaml:"rclone_dump"`
+	AccessKey          string `yaml:"access_key"`
+	SecretKey          string `yaml:"secret_key"`
 }
 
 type ArchiveConfig struct {
