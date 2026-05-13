@@ -13,6 +13,9 @@ s3:
   bucket: "vlog-archive"
   region: "us-east-1"
   prefix: ""
+  env_auth: false
+  provider: ""
+  force_path_style: false
   access_key: "minioadmin"
   secret_key: "minioadmin"
 

@@ -12,6 +12,7 @@ func TestConfigValidation(t *testing.T) {
 	}
 
 	cfg.S3.Bucket = "test-bucket"
+	cfg.S3.EnvAuth = true
 	err = cfg.Validate()
 	if err != nil {
 		t.Errorf("expected no error, got %v", err)

@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"strings"
 	"time"
 
 	"github.com/rclone/rclone/fs"
@@ -39,14 +40,32 @@ func (s *S3Storage) getS3Fs(ctx context.Context, path string) (fs.Fs, error) {
 		s3Path = fmt.Sprintf(":s3:%s/%s/%s", s.bucket, s.prefix, path)
 	}
 
-	// 在 Rclone 中，可以通过设置环境变量或直接配置参数来连接
-	// 这里通过连接字符串的参数来初始化 S3 fs
-	s3Path += fmt.Sprintf(",env_auth=false,access_key_id=%s,secret_access_key=%s,endpoint=%s,region=%s:",
-		s.cfg.AccessKey, s.cfg.SecretKey, s.cfg.Endpoint, s.cfg.Region)
+	var opts []string
+	opts = append(opts, fmt.Sprintf("env_auth=%t", s.cfg.EnvAuth))
+	if !s.cfg.EnvAuth {
+		opts = append(opts,
+			fmt.Sprintf("access_key_id=%s", s.cfg.AccessKey),
+			fmt.Sprintf("secret_access_key=%s", s.cfg.SecretKey),
+		)
+	}
+	if s.cfg.Endpoint != "" {
+		opts = append(opts, fmt.Sprintf("endpoint=%s", s.cfg.Endpoint))
+	}
+	if s.cfg.Region != "" {
+		opts = append(opts, fmt.Sprintf("region=%s", s.cfg.Region))
+	}
+	if s.cfg.Provider != "" {
+		opts = append(opts, fmt.Sprintf("provider=%s", s.cfg.Provider))
+	}
+	if s.cfg.ForcePathStyle {
+		opts = append(opts, "force_path_style=true")
+	}
+	s3Path += "," + strings.Join(opts, ",") + ":"
 
 	f, err := fs.NewFs(ctx, s3Path)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create s3 fs: %w", err)
+		return nil, fmt.Errorf("failed to create s3 fs (bucket=%s prefix=%s path=%s endpoint=%s region=%s env_auth=%t provider=%s force_path_style=%t): %w",
+			s.bucket, s.prefix, path, s.cfg.Endpoint, s.cfg.Region, s.cfg.EnvAuth, s.cfg.Provider, s.cfg.ForcePathStyle, err)
 	}
 	return f, nil
 }

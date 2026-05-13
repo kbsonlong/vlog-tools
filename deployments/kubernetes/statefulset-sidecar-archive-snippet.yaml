@@ -18,6 +18,8 @@ spec:
           valueFrom:
             fieldRef:
               fieldPath: metadata.name
+        - name: TZ
+          value: "Asia/Shanghai"
         volumeMounts:
         - name: data
           mountPath: /var/lib/victorialogs

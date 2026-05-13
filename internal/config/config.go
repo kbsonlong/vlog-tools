@@ -30,12 +30,15 @@ type NodeConfig struct {
 }
 
 type S3Config struct {
-	Endpoint  string `yaml:"endpoint"`
-	Bucket    string `yaml:"bucket"`
-	Region    string `yaml:"region"`
-	Prefix    string `yaml:"prefix"`
-	AccessKey string `yaml:"access_key"`
-	SecretKey string `yaml:"secret_key"`
+	Endpoint       string `yaml:"endpoint"`
+	Bucket         string `yaml:"bucket"`
+	Region         string `yaml:"region"`
+	Prefix         string `yaml:"prefix"`
+	EnvAuth        bool   `yaml:"env_auth"`
+	Provider       string `yaml:"provider"`
+	ForcePathStyle bool   `yaml:"force_path_style"`
+	AccessKey      string `yaml:"access_key"`
+	SecretKey      string `yaml:"secret_key"`
 }
 
 type ArchiveConfig struct {
@@ -99,6 +102,9 @@ func (c *Config) expandEnvVars() error {
 func (c *Config) Validate() error {
 	if c.S3.Bucket == "" {
 		return fmt.Errorf("S3 bucket is required")
+	}
+	if !c.S3.EnvAuth && (c.S3.AccessKey == "" || c.S3.SecretKey == "") {
+		return fmt.Errorf("S3 access_key/secret_key are required when env_auth is false")
 	}
 	return nil
 }
