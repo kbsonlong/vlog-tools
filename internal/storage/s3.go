@@ -205,7 +205,7 @@ func (s *S3Storage) GetMetadata(ctx context.Context, path string) ([]byte, error
 		return nil, err
 	}
 
-	rc, err := obj.Open(ctx, nil)
+	rc, err := obj.Open(ctx)
 	if err != nil {
 		return nil, err
 	}
