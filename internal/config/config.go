@@ -34,6 +34,7 @@ type S3Config struct {
 	Bucket         string `yaml:"bucket"`
 	Region         string `yaml:"region"`
 	Prefix         string `yaml:"prefix"`
+	UseSSL         *bool  `yaml:"use_ssl"`
 	EnvAuth        bool   `yaml:"env_auth"`
 	Provider       string `yaml:"provider"`
 	ForcePathStyle bool   `yaml:"force_path_style"`

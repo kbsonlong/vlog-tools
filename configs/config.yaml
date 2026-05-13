@@ -13,6 +13,7 @@ s3:
   bucket: "vlog-archive"
   region: "us-east-1"
   prefix: ""
+  use_ssl: false
   env_auth: false
   provider: ""
   force_path_style: false

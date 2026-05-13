@@ -2,6 +2,7 @@ s3:
   endpoint: "minio:9000"     # 或 s3.amazonaws.com / 你的对象存储地址
   bucket: "vlog-archive"
   region: "us-east-1"
+  use_ssl: false
   env_auth: false
   provider: ""
   force_path_style: false

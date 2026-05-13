@@ -40,16 +40,35 @@ func (s *S3Storage) getS3Fs(ctx context.Context, path string) (fs.Fs, error) {
 		s3Path = fmt.Sprintf(":s3:%s/%s/%s", s.bucket, s.prefix, path)
 	}
 
+	useSSL := true
+	if s.cfg.UseSSL != nil {
+		useSSL = *s.cfg.UseSSL
+	}
+	endpoint := s.cfg.Endpoint
+	if strings.HasPrefix(endpoint, "http://") {
+		endpoint = strings.TrimPrefix(endpoint, "http://")
+		if s.cfg.UseSSL == nil {
+			useSSL = false
+		}
+	}
+	if strings.HasPrefix(endpoint, "https://") {
+		endpoint = strings.TrimPrefix(endpoint, "https://")
+		if s.cfg.UseSSL == nil {
+			useSSL = true
+		}
+	}
+
 	var opts []string
 	opts = append(opts, fmt.Sprintf("env_auth=%t", s.cfg.EnvAuth))
+	opts = append(opts, fmt.Sprintf("use_ssl=%t", useSSL))
 	if !s.cfg.EnvAuth {
 		opts = append(opts,
 			fmt.Sprintf("access_key_id=%s", s.cfg.AccessKey),
 			fmt.Sprintf("secret_access_key=%s", s.cfg.SecretKey),
 		)
 	}
-	if s.cfg.Endpoint != "" {
-		opts = append(opts, fmt.Sprintf("endpoint=%s", s.cfg.Endpoint))
+	if endpoint != "" {
+		opts = append(opts, fmt.Sprintf("endpoint=%s", endpoint))
 	}
 	if s.cfg.Region != "" {
 		opts = append(opts, fmt.Sprintf("region=%s", s.cfg.Region))
@@ -64,8 +83,8 @@ func (s *S3Storage) getS3Fs(ctx context.Context, path string) (fs.Fs, error) {
 
 	f, err := fs.NewFs(ctx, s3Path)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create s3 fs (bucket=%s prefix=%s path=%s endpoint=%s region=%s env_auth=%t provider=%s force_path_style=%t): %w",
-			s.bucket, s.prefix, path, s.cfg.Endpoint, s.cfg.Region, s.cfg.EnvAuth, s.cfg.Provider, s.cfg.ForcePathStyle, err)
+		return nil, fmt.Errorf("failed to create s3 fs (bucket=%s prefix=%s path=%s endpoint=%s region=%s env_auth=%t use_ssl=%t provider=%s force_path_style=%t): %w",
+			s.bucket, s.prefix, path, endpoint, s.cfg.Region, s.cfg.EnvAuth, useSSL, s.cfg.Provider, s.cfg.ForcePathStyle, err)
 	}
 	return f, nil
 }
