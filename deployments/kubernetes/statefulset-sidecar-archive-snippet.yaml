@@ -12,7 +12,14 @@ spec:
           mountPath: /var/lib/victorialogs
       - name: vlog-tools-archiver
         image: your-registry/vlog-tools:latest
-        args: ["serve", "archive", "--cron=0 2 * * *", "--offset-days=1", "--source-path=/var/lib/victorialogs"]
+        args:
+        - "serve"
+        - "archive"
+        - "--cron=0 9 * * *"
+        - "--offset-days=1"
+        - "--partition-timezone=UTC"
+        - "--node-url=http://127.0.0.1:9428"
+        - "--source-path=/var/lib/victorialogs"
         env:
         - name: POD_NAME
           valueFrom:

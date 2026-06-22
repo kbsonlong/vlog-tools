@@ -19,16 +19,22 @@ func NewVerifier(logger *zap.Logger) *Verifier {
 func (v *Verifier) VerifyPartition(ctx context.Context, path string) error {
 	v.logger.Debug("Verifying partition structure", zap.String("path", path))
 
-	// 基本结构检查：确保包含 datadb 目录和 parts.json
+	// 基本结构检查：确保包含 datadb 目录和至少一个 part 目录。
+	// parts.json 在多节点合并后故意删除，由 VictoriaLogs 冷启动或 attach 时重建。
 	datadbPath := filepath.Join(path, "datadb")
 	if _, err := os.Stat(datadbPath); os.IsNotExist(err) {
 		return err
 	}
 
-	partsPath := filepath.Join(datadbPath, "parts.json")
-	if _, err := os.Stat(partsPath); os.IsNotExist(err) {
+	entries, err := os.ReadDir(datadbPath)
+	if err != nil {
 		return err
 	}
+	for _, entry := range entries {
+		if entry.IsDir() {
+			return nil
+		}
+	}
 
-	return nil
+	return os.ErrNotExist
 }

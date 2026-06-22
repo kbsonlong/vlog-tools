@@ -4,7 +4,7 @@ metadata:
   name: vlog-archive
   namespace: monitoring
 spec:
-  schedule: "0 2 * * *"  # 每天凌晨 2 点执行
+  schedule: "0 9 * * *"  # Asia/Shanghai 09:00，归档昨天 UTC 分区
   jobTemplate:
     spec:
       template:
@@ -14,7 +14,12 @@ spec:
           - name: archiver
             image: your-registry/vlog-tools:latest
             command: ["vlog-tools", "serve", "archive"]
-            args: ["--once"]
+            args:
+            - "--once"
+            - "--offset-days=1"
+            - "--partition-timezone=UTC"
+            - "--node-url=http://vlstorage-0:9428"
+            - "--source-path=/tmp/vlog-data/node-0"
             volumeMounts:
             - name: hot-node-0-data
               mountPath: /tmp/vlog-data/node-0

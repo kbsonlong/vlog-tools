@@ -15,6 +15,9 @@ s3:
 
 archive:
   update_metadata: false     # sidecar 强烈建议 false
-  cron: "0 2 * * *"
+  cron: "0 9 * * *"
   partition_offset_days: 1
+  partition_timezone: "UTC"
+  partition_auth_key: ""
+  node_url: "http://127.0.0.1:9428"
   source_data_path: "/var/lib/victorialogs"

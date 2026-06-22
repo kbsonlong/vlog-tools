@@ -39,6 +39,8 @@ type S3Config struct {
 	Provider           string `yaml:"provider"`
 	ForcePathStyle     bool   `yaml:"force_path_style"`
 	UseUnsignedPayload *bool  `yaml:"use_unsigned_payload"`
+	DisableChecksum    *bool  `yaml:"disable_checksum"`
+	UseMultipartEtag   *bool  `yaml:"use_multipart_etag"`
 	HTTPProxy          string `yaml:"http_proxy"`
 	RcloneLogLevel     string `yaml:"rclone_log_level"`
 	RcloneDump         string `yaml:"rclone_dump"`
@@ -51,8 +53,11 @@ type ArchiveConfig struct {
 	Every               string `yaml:"every"`
 	Cron                string `yaml:"cron"`
 	PartitionOffsetDays int    `yaml:"partition_offset_days"`
+	PartitionTimezone   string `yaml:"partition_timezone"`
+	PartitionAuthKey    string `yaml:"partition_auth_key"`
 	UpdateMetadata      bool   `yaml:"update_metadata"`
 	NodeName            string `yaml:"node_name"`
+	NodeURL             string `yaml:"node_url"`
 	SourceDataPath      string `yaml:"source_data_path"`
 }
 

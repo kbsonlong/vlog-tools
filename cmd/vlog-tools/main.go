@@ -108,8 +108,10 @@ func main() {
 			everyStr, _ := cmd.Flags().GetString("every")
 			cronSpec, _ := cmd.Flags().GetString("cron")
 			offsetDays, _ := cmd.Flags().GetInt("offset-days")
+			partitionTimezone, _ := cmd.Flags().GetString("partition-timezone")
 			once, _ := cmd.Flags().GetBool("once")
 			nodeName, _ := cmd.Flags().GetString("node-name")
+			nodeURL, _ := cmd.Flags().GetString("node-url")
 			sourcePath, _ := cmd.Flags().GetString("source-path")
 
 			var every time.Duration
@@ -124,9 +126,15 @@ func main() {
 			if cronSpec == "" {
 				cronSpec = cfg.Archive.Cron
 			}
+			if partitionTimezone == "" {
+				partitionTimezone = cfg.Archive.PartitionTimezone
+			}
 
 			if nodeName == "" {
 				nodeName = cfg.Archive.NodeName
+			}
+			if nodeURL == "" {
+				nodeURL = cfg.Archive.NodeURL
 			}
 			if nodeName == "" {
 				nodeName = cfg.ColdNode.Name
@@ -140,6 +148,7 @@ func main() {
 			if nodeName != "" && sourcePath != "" {
 				cfg.HotNodes = []config.NodeConfig{{
 					Name:          nodeName,
+					URL:           nodeURL,
 					LocalDataPath: sourcePath,
 				}}
 			}
@@ -151,6 +160,7 @@ func main() {
 				Every:               every,
 				Cron:                cronSpec,
 				PartitionOffsetDays: offsetDays,
+				PartitionTimezone:   partitionTimezone,
 				Once:                once,
 			})
 		},
@@ -158,8 +168,10 @@ func main() {
 	serveArchiveCmd.Flags().String("every", "", "archive interval, e.g. 24h")
 	serveArchiveCmd.Flags().String("cron", "", "cron expression, e.g. \"0 2 * * *\"")
 	serveArchiveCmd.Flags().Int("offset-days", 1, "partition offset days, e.g. 1 for yesterday")
+	serveArchiveCmd.Flags().String("partition-timezone", "", "timezone used to calculate partition dates, e.g. UTC or Asia/Shanghai")
 	serveArchiveCmd.Flags().Bool("once", false, "run once and exit")
 	serveArchiveCmd.Flags().String("node-name", "", "sidecar node name")
+	serveArchiveCmd.Flags().String("node-url", "", "sidecar VictoriaLogs URL, e.g. http://127.0.0.1:9428")
 	serveArchiveCmd.Flags().String("source-path", "", "sidecar source data path (mount path)")
 	serveCmd.AddCommand(serveArchiveCmd)
 

@@ -14,6 +14,7 @@ type RunOptions struct {
 	Every               time.Duration
 	Cron                string
 	PartitionOffsetDays int
+	PartitionTimezone   string
 	Once                bool
 }
 
@@ -22,9 +23,16 @@ func Run(ctx context.Context, logger *zap.Logger, archiver *Archiver, opts RunOp
 		opts.Every = 24 * time.Hour
 	}
 
+	location, err := partitionLocation(opts.PartitionTimezone)
+	if err != nil {
+		return err
+	}
+
 	runOnce := func() error {
-		partition := time.Now().AddDate(0, 0, -opts.PartitionOffsetDays).Format("20060102")
-		logger.Info("archive tick", zap.String("partition", partition))
+		partition := partitionForTime(time.Now(), opts.PartitionOffsetDays, location)
+		logger.Info("archive tick",
+			zap.String("partition", partition),
+			zap.String("partition_timezone", location.String()))
 		_, err := archiver.ArchivePartition(ctx, partition)
 		if err != nil {
 			if strings.Contains(err.Error(), "partition not found:") {
@@ -74,4 +82,19 @@ func Run(ctx context.Context, logger *zap.Logger, archiver *Archiver, opts RunOp
 			}
 		}
 	}
+}
+
+func partitionLocation(name string) (*time.Location, error) {
+	if name == "" || name == "Local" {
+		return time.Local, nil
+	}
+	loc, err := time.LoadLocation(name)
+	if err != nil {
+		return nil, fmt.Errorf("invalid partition timezone %q: %w", name, err)
+	}
+	return loc, nil
+}
+
+func partitionForTime(now time.Time, offsetDays int, loc *time.Location) string {
+	return now.In(loc).AddDate(0, 0, -offsetDays).Format("20060102")
 }

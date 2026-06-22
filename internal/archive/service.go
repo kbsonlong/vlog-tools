@@ -5,10 +5,13 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/rclone/rclone/fs"
+	"github.com/vlog-tools/vlog-tools/internal/api"
 	"github.com/vlog-tools/vlog-tools/internal/config"
 	"github.com/vlog-tools/vlog-tools/internal/metadata"
 	"github.com/vlog-tools/vlog-tools/internal/storage"
@@ -113,12 +116,6 @@ func (a *Archiver) archiveFromNode(ctx context.Context, node config.NodeConfig, 
 		zap.String("node", node.Name),
 		zap.String("partition", partition))
 
-	sourcePath := fmt.Sprintf("%s/partitions/%s", node.LocalDataPath, partition)
-
-	if _, err := os.Stat(sourcePath); os.IsNotExist(err) {
-		return nil, fmt.Errorf("partition not found: %s", sourcePath)
-	}
-
 	s3Path := fmt.Sprintf("nodes/%s/%s", node.Name, partition)
 	successMarker := fmt.Sprintf("%s/_SUCCESS", s3Path)
 
@@ -138,12 +135,45 @@ func (a *Archiver) archiveFromNode(ctx context.Context, node config.NodeConfig, 
 			zap.Error(err))
 	}
 
-	uploadResult, err := a.storage.CopyToS3(ctx, sourcePath, s3Path)
+	if node.URL == "" {
+		return nil, fmt.Errorf("node url is required for snapshot backup: node=%s", node.Name)
+	}
+
+	vl := api.NewClient(node.URL, a.logger)
+	snapshotPaths, err := vl.CreatePartitionSnapshot(ctx, partition, a.config.Archive.PartitionAuthKey)
 	if err != nil {
 		return nil, err
 	}
 
-	_ = a.storage.PutMetadata(ctx, successMarker, []byte(time.Now().UTC().Format(time.RFC3339)))
+	var uploadResult *storage.SyncResult
+	var uploadErr error
+	for _, snapshotPath := range snapshotPaths {
+		localSnapshotPath, err := resolveSnapshotPath(snapshotPath, node.LocalDataPath)
+		if err != nil {
+			uploadErr = err
+		} else {
+			uploadResult, uploadErr = a.storage.CopyToS3(ctx, localSnapshotPath, s3Path)
+		}
+
+		if err := vl.DeletePartitionSnapshot(ctx, snapshotPath, a.config.Archive.PartitionAuthKey); err != nil {
+			a.logger.Warn("Failed to delete partition snapshot",
+				zap.String("node", node.Name),
+				zap.String("partition", partition),
+				zap.String("snapshot_path", snapshotPath),
+				zap.Error(err))
+		}
+		if uploadErr != nil {
+			return nil, uploadErr
+		}
+	}
+
+	if uploadResult == nil {
+		return nil, fmt.Errorf("no snapshot uploaded for partition %s on node %s", partition, node.Name)
+	}
+
+	if err := a.storage.PutMetadata(ctx, successMarker, []byte(time.Now().UTC().Format(time.RFC3339))); err != nil {
+		return nil, fmt.Errorf("put archive marker: %w", err)
+	}
 
 	duration := time.Since(start)
 	a.logger.Info("Node archive completed",
@@ -156,6 +186,33 @@ func (a *Archiver) archiveFromNode(ctx context.Context, node config.NodeConfig, 
 		SizeBytes: uploadResult.SizeBytes,
 		Duration:  duration,
 	}, nil
+}
+
+func resolveSnapshotPath(snapshotPath string, localDataPath string) (string, error) {
+	if _, err := os.Stat(snapshotPath); err == nil {
+		return snapshotPath, nil
+	} else if !os.IsNotExist(err) {
+		return "", err
+	}
+
+	if localDataPath == "" {
+		return "", fmt.Errorf("snapshot path not found: %s", snapshotPath)
+	}
+
+	needle := string(filepath.Separator) + "snapshots" + string(filepath.Separator)
+	idx := strings.Index(snapshotPath, needle)
+	if idx < 0 {
+		return "", fmt.Errorf("snapshot path not found and cannot map to source path: %s", snapshotPath)
+	}
+
+	mappedPath := filepath.Join(localDataPath, snapshotPath[idx+1:])
+	if _, err := os.Stat(mappedPath); err != nil {
+		if os.IsNotExist(err) {
+			return "", fmt.Errorf("snapshot path not found: %s or mapped path %s", snapshotPath, mappedPath)
+		}
+		return "", err
+	}
+	return mappedPath, nil
 }
 
 type NodeArchiveResult struct {

@@ -2,12 +2,11 @@ package merge
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
+	"hash/fnv"
 	"io"
 	"os"
 	"path/filepath"
-	"sync"
 	"time"
 
 	"github.com/vlog-tools/vlog-tools/internal/config"
@@ -55,50 +54,38 @@ func (m *Merger) MergeLocalDirs(ctx context.Context, srcDir string, partition st
 		zap.Int("count", len(nodeDirs)),
 		zap.Strings("nodes", nodeDirs))
 
-	var wg sync.WaitGroup
-	errChan := make(chan error, len(nodeDirs))
+	totalParts := 0
 
 	for _, nodeDir := range nodeDirs {
-		wg.Add(1)
-		go func(dir string) {
-			defer wg.Done()
-			srcDatadb := filepath.Join(srcDir, dir, "datadb")
-			if _, err := os.Stat(srcDatadb); os.IsNotExist(err) {
-				// 有些节点可能没有数据，忽略或记录
-				m.logger.Warn("datadb not found", zap.String("dir", dir))
-				return
-			}
-
-			if err := m.copyStreamData(srcDatadb, datadbDir); err != nil {
-				errChan <- fmt.Errorf("failed to copy from %s: %w", dir, err)
-				return
-			}
-		}(nodeDir)
-	}
-
-	wg.Wait()
-	close(errChan)
-
-	var firstErr error
-	for err := range errChan {
-		if firstErr == nil {
-			firstErr = err
+		srcDatadb := filepath.Join(srcDir, nodeDir, "datadb")
+		if _, err := os.Stat(srcDatadb); os.IsNotExist(err) {
+			// 有些节点可能没有数据，忽略或记录
+			m.logger.Warn("datadb not found", zap.String("dir", nodeDir))
+			continue
 		}
+
+		copiedParts, err := m.copyPartData(srcDatadb, datadbDir, nodeDir)
+		if err != nil {
+			os.RemoveAll(mergedDir)
+			return "", fmt.Errorf("failed to copy from %s: %w", nodeDir, err)
+		}
+		totalParts += copiedParts
 	}
 
-	if firstErr != nil {
+	if totalParts == 0 {
 		os.RemoveAll(mergedDir)
-		return "", firstErr
+		return "", fmt.Errorf("no data parts found in %s", srcDir)
 	}
 
-	if err := m.mergePartsJSON(datadbDir, srcDir, nodeDirs); err != nil {
+	if err := os.Remove(filepath.Join(datadbDir, "parts.json")); err != nil && !os.IsNotExist(err) {
 		os.RemoveAll(mergedDir)
-		return "", fmt.Errorf("failed to merge parts.json: %w", err)
+		return "", fmt.Errorf("failed to remove generated parts.json: %w", err)
 	}
 
 	duration := time.Since(start)
 	m.logger.Info("Local merge completed",
 		zap.String("merged_dir", mergedDir),
+		zap.Int("parts", totalParts),
 		zap.Duration("duration", duration))
 
 	return mergedDir, nil
@@ -119,31 +106,59 @@ func (m *Merger) findNodeDirectories(srcDir string) ([]string, error) {
 	return nodeDirs, nil
 }
 
-func (m *Merger) copyStreamData(srcDatadb, dstDatadb string) error {
+func (m *Merger) copyPartData(srcDatadb, dstDatadb, nodeName string) (int, error) {
 	entries, err := os.ReadDir(srcDatadb)
 	if err != nil {
-		return err
+		return 0, err
 	}
 
+	copiedParts := 0
 	for _, entry := range entries {
 		if !entry.IsDir() {
 			continue
 		}
 
-		streamID := entry.Name()
-		srcStreamPath := filepath.Join(srcDatadb, streamID)
-		dstStreamPath := filepath.Join(dstDatadb, streamID)
+		partID := entry.Name()
+		srcPartPath := filepath.Join(srcDatadb, partID)
+		dstPartPath := m.nextPartPath(dstDatadb, partID, nodeName)
 
-		if _, err := os.Stat(dstStreamPath); err == nil {
-			m.logger.Debug("Stream already exists, skipping", zap.String("stream_id", streamID))
-			continue
+		if filepath.Base(dstPartPath) != partID {
+			m.logger.Warn("Part name collision, preserving both copies",
+				zap.String("node", nodeName),
+				zap.String("part", partID),
+				zap.String("renamed_to", filepath.Base(dstPartPath)))
 		}
 
-		if err := m.copyDirectory(srcStreamPath, dstStreamPath); err != nil {
-			return err
+		if err := m.copyDirectory(srcPartPath, dstPartPath); err != nil {
+			return copiedParts, err
+		}
+		copiedParts++
+	}
+	return copiedParts, nil
+}
+
+func (m *Merger) nextPartPath(dstDatadb, partID, nodeName string) string {
+	dst := filepath.Join(dstDatadb, partID)
+	if _, err := os.Stat(dst); os.IsNotExist(err) {
+		return dst
+	}
+
+	for i := 0; ; i++ {
+		dst = filepath.Join(dstDatadb, hashedPartID(nodeName, partID, i))
+		if _, err := os.Stat(dst); os.IsNotExist(err) {
+			return dst
 		}
 	}
-	return nil
+}
+
+func hashedPartID(nodeName, partID string, salt int) string {
+	h := fnv.New64a()
+	_, _ = h.Write([]byte(nodeName))
+	_, _ = h.Write([]byte{0})
+	_, _ = h.Write([]byte(partID))
+	_, _ = h.Write([]byte{0})
+	_, _ = h.Write([]byte(fmt.Sprintf("%d", salt)))
+	return fmt.Sprintf("%016X", h.Sum64())
 }
 
 func (m *Merger) copyDirectory(src, dst string) error {
@@ -181,60 +196,4 @@ func (m *Merger) copyFile(src, dst string, mode os.FileMode) error {
 
 	_, err = io.Copy(dstFile, srcFile)
 	return err
-}
-
-func (m *Merger) mergePartsJSON(dstDatadbDir, srcDir string, nodeDirs []string) error {
-	allParts := make(map[string]interface{})
-	sourceNodes := make(map[string]bool)
-
-	for _, dir := range nodeDirs {
-		partsFile := filepath.Join(srcDir, dir, "datadb", "parts.json")
-		if _, err := os.Stat(partsFile); os.IsNotExist(err) {
-			continue
-		}
-
-		data, err := os.ReadFile(partsFile)
-		if err != nil {
-			return err
-		}
-
-		var partsData map[string]interface{}
-		if err := json.Unmarshal(data, &partsData); err != nil {
-			return err
-		}
-
-		if parts, ok := partsData["Parts"].([]interface{}); ok {
-			for _, part := range parts {
-				if partMap, ok := part.(map[string]interface{}); ok {
-					partID := partMap["PartID"]
-					if partID != nil {
-						allParts[fmt.Sprintf("%v", partID)] = part
-					}
-				}
-			}
-		}
-
-		sourceNodes[dir] = true
-	}
-
-	merged := map[string]interface{}{
-		"Parts": make([]interface{}, 0, len(allParts)),
-		"Metadata": map[string]interface{}{
-			"SourceNodes": len(sourceNodes),
-			"TotalParts":  len(allParts),
-			"MergedAt":    time.Now().UTC().Format(time.RFC3339),
-			"MergedBy":    "vlog-tools",
-		},
-	}
-
-	for _, part := range allParts {
-		merged["Parts"] = append(merged["Parts"].([]interface{}), part)
-	}
-
-	data, err := json.MarshalIndent(merged, "", "  ")
-	if err != nil {
-		return err
-	}
-
-	return os.WriteFile(filepath.Join(dstDatadbDir, "parts.json"), data, 0644)
 }

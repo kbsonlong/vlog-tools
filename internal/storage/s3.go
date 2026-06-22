@@ -95,6 +95,12 @@ func (s *S3Storage) getS3Fs(ctx context.Context, path string) (fs.Fs, error) {
 	if s.cfg.UseUnsignedPayload != nil {
 		opts = append(opts, fmt.Sprintf("use_unsigned_payload=%t", *s.cfg.UseUnsignedPayload))
 	}
+	if s.cfg.DisableChecksum != nil {
+		opts = append(opts, fmt.Sprintf("disable_checksum=%t", *s.cfg.DisableChecksum))
+	}
+	if s.cfg.UseMultipartEtag != nil {
+		opts = append(opts, fmt.Sprintf("use_multipart_etag=%t", *s.cfg.UseMultipartEtag))
+	}
 	if s.cfg.HTTPProxy != "" {
 		opts = append(opts, fmt.Sprintf("override.http_proxy=%s", quoteConnValue(s.cfg.HTTPProxy)))
 	}
