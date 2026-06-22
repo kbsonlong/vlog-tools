@@ -1,0 +1,51 @@
+global:
+  environment: "prod"
+
+hot_nodes: []                        # sidecar 模式可留空，程序会自动用 POD_NAME + archive.* 推导当前节点
+
+cold_node:
+  name: "cold-node-0"
+  url: "http://cold-node-0:9428"
+  local_data_path: "/tmp/vlog-data/cold-node"
+
+s3:
+  endpoint: "10.88.70.7:1601"
+  bucket: "audit-log"
+  region: "us-east-1"
+  prefix: ""
+  use_ssl: false
+  env_auth: false
+  provider: "AWS"
+  force_path_style: true
+  use_unsigned_payload: true
+  http_proxy: ""
+  rclone_log_level: ""
+  rclone_dump: ""
+  access_key: "replace-me"
+  secret_key: "replace-me"
+
+archive:
+  concurrency: 1
+  every: "24h"
+  cron: "0 9 * * *"                  # Asia/Shanghai 09:00，归档昨天 UTC 分区
+  partition_offset_days: 1
+  partition_timezone: "UTC"
+  partition_auth_key: ""
+  update_metadata: true              # 历史补备建议打开，补齐 partition-map.json
+  node_name: "${POD_NAME}"
+  node_url: "http://127.0.0.1:9428"
+  source_data_path: "/var/lib/victorialogs"
+
+pull:
+  local_data_path: "/tmp/vlog-data/cold-node"
+
+cache:
+  max_size_gb: 50
+  retention_days: 30
+
+logging:
+  level: "info"
+
+metrics:
+  enabled: true
+  port: "9090"

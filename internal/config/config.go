@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 )
@@ -95,6 +96,7 @@ func Load(path string) (*Config, error) {
 	if err := cfg.expandEnvVars(); err != nil {
 		return nil, err
 	}
+	cfg.applySidecarDefaults()
 
 	// 验证
 	if err := cfg.Validate(); err != nil {
@@ -105,8 +107,60 @@ func Load(path string) (*Config, error) {
 }
 
 func (c *Config) expandEnvVars() error {
-	// TODO: 实现 ${VAR} 替换
+	expand := func(v string) string {
+		return os.Expand(v, func(key string) string {
+			return os.Getenv(key)
+		})
+	}
+
+	c.Global.Environment = expand(c.Global.Environment)
+	for i := range c.HotNodes {
+		c.HotNodes[i].Name = expand(c.HotNodes[i].Name)
+		c.HotNodes[i].URL = expand(c.HotNodes[i].URL)
+		c.HotNodes[i].LocalDataPath = expand(c.HotNodes[i].LocalDataPath)
+	}
+	c.ColdNode.Name = expand(c.ColdNode.Name)
+	c.ColdNode.URL = expand(c.ColdNode.URL)
+	c.ColdNode.LocalDataPath = expand(c.ColdNode.LocalDataPath)
+
+	c.S3.Endpoint = expand(c.S3.Endpoint)
+	c.S3.Bucket = expand(c.S3.Bucket)
+	c.S3.Region = expand(c.S3.Region)
+	c.S3.Prefix = expand(c.S3.Prefix)
+	c.S3.Provider = expand(c.S3.Provider)
+	c.S3.HTTPProxy = expand(c.S3.HTTPProxy)
+	c.S3.RcloneLogLevel = expand(c.S3.RcloneLogLevel)
+	c.S3.RcloneDump = expand(c.S3.RcloneDump)
+	c.S3.AccessKey = expand(c.S3.AccessKey)
+	c.S3.SecretKey = expand(c.S3.SecretKey)
+
+	c.Archive.Every = expand(c.Archive.Every)
+	c.Archive.Cron = expand(c.Archive.Cron)
+	c.Archive.PartitionTimezone = expand(c.Archive.PartitionTimezone)
+	c.Archive.PartitionAuthKey = expand(c.Archive.PartitionAuthKey)
+	c.Archive.NodeName = expand(c.Archive.NodeName)
+	c.Archive.NodeURL = expand(c.Archive.NodeURL)
+	c.Archive.SourceDataPath = expand(c.Archive.SourceDataPath)
+
+	c.Pull.LocalDataPath = expand(c.Pull.LocalDataPath)
+	c.Logging.Level = expand(c.Logging.Level)
+	c.Metrics.Port = expand(c.Metrics.Port)
 	return nil
+}
+
+func (c *Config) applySidecarDefaults() {
+	podName := strings.TrimSpace(os.Getenv("POD_NAME"))
+	if c.Archive.NodeName == "" && podName != "" {
+		c.Archive.NodeName = podName
+	}
+
+	if len(c.HotNodes) == 0 && c.Archive.NodeName != "" && c.Archive.NodeURL != "" && c.Archive.SourceDataPath != "" {
+		c.HotNodes = []NodeConfig{{
+			Name:          c.Archive.NodeName,
+			URL:           c.Archive.NodeURL,
+			LocalDataPath: c.Archive.SourceDataPath,
+		}}
+	}
 }
 
 func (c *Config) Validate() error {

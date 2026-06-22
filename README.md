@@ -31,6 +31,17 @@ docker-compose up -d
 ./bin/vlog-tools archive partition 20260408 --config configs/config.yaml
 ```
 
+**1.1 批量补历史分区**（适合历史回填）：
+
+```bash
+./bin/vlog-tools archive range \
+  --start 2026-05-01 \
+  --end 2026-06-15 \
+  --config configs/config.yaml
+```
+
+接受 `YYYYMMDD` 和 `YYYY-MM-DD` 两种格式。范围按 UTC 日期逐天包含式执行；如果希望遇错继续补跑剩余分区，可以追加 `--continue-on-error`。
+
 **2. sidecar/CronJob 模式单次执行**（自动计算分区日期，适合调试或一次性补跑）：
 
 ```bash
@@ -67,6 +78,28 @@ docker-compose up -d
 
 - 示例片段: [statefulset-sidecar-archive-snippet.yaml](file:///Users/zengshenglong/Code/GoWorkSpace/vlog-backup/vlog-tools/deployments/kubernetes/statefulset-sidecar-archive-snippet.yaml)
 - CronJob 场景: [cronjob-archive.yaml](file:///Users/zengshenglong/Code/GoWorkSpace/vlog-backup/vlog-tools/deployments/kubernetes/cronjob-archive.yaml)
+- sidecar 历史补备配置模板: [config-sidecar-history.yaml](file:///Users/zengshenglong/Code/GoWorkSpace/vlog-backup/vlog-tools/configs/config-sidecar-history.yaml)
+
+`archive.node_name/node_url/source_data_path` 在 sidecar 模式下指向“当前 Pod 的这个 vlstorage 节点”。如果设置了 `POD_NAME` 环境变量，程序会自动把它作为节点名；`hot_nodes` 也可以留空，程序会自动用 `POD_NAME + archive.node_url + archive.source_data_path` 推导当前节点。如果是 `vlstorage-0`、`vlstorage-1`、`vlstorage-2` 三个副本，就分别在三个 sidecar 里各自执行补历史；不要试图用一个 sidecar 替整个 StatefulSet 回填所有历史数据。
+
+历史补备推荐直接执行：
+
+```bash
+./bin/vlog-tools archive range \
+  --start 20260501 \
+  --end 20260615 \
+  --config /config/rclone.conf
+```
+
+如果希望跳过失败分区继续跑：
+
+```bash
+./bin/vlog-tools archive range \
+  --start 20260501 \
+  --end 20260615 \
+  --continue-on-error \
+  --config /config/rclone.conf
+```
 
 ## 用 cron 管理 sidecar 归档
 

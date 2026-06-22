@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -59,7 +60,64 @@ func main() {
 			return nil
 		},
 	}
-	archiveCmd.AddCommand(archivePartitionCmd)
+	archiveRangeCmd := &cobra.Command{
+		Use:   "range",
+		Short: "Archive a range of partitions to S3",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			startRaw, _ := cmd.Flags().GetString("start")
+			endRaw, _ := cmd.Flags().GetString("end")
+			continueOnError, _ := cmd.Flags().GetBool("continue-on-error")
+
+			if startRaw == "" || endRaw == "" {
+				return fmt.Errorf("both --start and --end are required")
+			}
+
+			start, err := parsePartitionDate(startRaw)
+			if err != nil {
+				return fmt.Errorf("invalid --start: %w", err)
+			}
+			end, err := parsePartitionDate(endRaw)
+			if err != nil {
+				return fmt.Errorf("invalid --end: %w", err)
+			}
+			if end.Before(start) {
+				return fmt.Errorf("--end must be greater than or equal to --start")
+			}
+
+			cfg, logger, store, meta, err := initDeps()
+			if err != nil {
+				return err
+			}
+			defer logger.Sync()
+
+			archiver := archive.NewArchiver(cfg, store, meta, logger)
+
+			partitions := partitionsBetween(start, end)
+			var failed []string
+			for _, partition := range partitions {
+				fmt.Printf("Archiving partition %s\n", partition)
+				if _, err := archiver.ArchivePartition(context.Background(), partition); err != nil {
+					if !continueOnError {
+						return fmt.Errorf("archive partition %s: %w", partition, err)
+					}
+					logger.Error("archive partition failed", zap.String("partition", partition), zap.Error(err))
+					failed = append(failed, partition)
+				}
+			}
+
+			if len(failed) > 0 {
+				return fmt.Errorf("archive range completed with failures: %s", strings.Join(failed, ","))
+			}
+
+			fmt.Printf("Archive range success: start=%s end=%s count=%d\n",
+				start.Format("20060102"), end.Format("20060102"), len(partitions))
+			return nil
+		},
+	}
+	archiveRangeCmd.Flags().String("start", "", "start partition date in YYYYMMDD or YYYY-MM-DD")
+	archiveRangeCmd.Flags().String("end", "", "end partition date in YYYYMMDD or YYYY-MM-DD")
+	archiveRangeCmd.Flags().Bool("continue-on-error", false, "continue archiving remaining partitions when one partition fails")
+	archiveCmd.AddCommand(archivePartitionCmd, archiveRangeCmd)
 
 	pullCmd := &cobra.Command{
 		Use:   "pull",
@@ -189,6 +247,23 @@ func main() {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
+}
+
+func parsePartitionDate(raw string) (time.Time, error) {
+	for _, layout := range []string{"20060102", "2006-01-02"} {
+		if t, err := time.ParseInLocation(layout, raw, time.UTC); err == nil {
+			return t, nil
+		}
+	}
+	return time.Time{}, fmt.Errorf("unsupported date format %q", raw)
+}
+
+func partitionsBetween(start, end time.Time) []string {
+	var partitions []string
+	for current := start; !current.After(end); current = current.AddDate(0, 0, 1) {
+		partitions = append(partitions, current.Format("20060102"))
+	}
+	return partitions
 }
 
 func initDeps() (*config.Config, *zap.Logger, storage.Storage, *metadata.Manager, error) {
