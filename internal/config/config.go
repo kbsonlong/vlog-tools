@@ -153,6 +153,12 @@ func (c *Config) applySidecarDefaults() {
 	if c.Archive.NodeName == "" && podName != "" {
 		c.Archive.NodeName = podName
 	}
+	if c.Archive.NodeURL == "" {
+		c.Archive.NodeURL = "http://127.0.0.1:9428"
+	}
+	if c.Archive.SourceDataPath == "" {
+		c.Archive.SourceDataPath = "/var/lib/victorialogs"
+	}
 
 	if len(c.HotNodes) == 0 && c.Archive.NodeName != "" && c.Archive.NodeURL != "" && c.Archive.SourceDataPath != "" {
 		c.HotNodes = []NodeConfig{{
@@ -169,6 +175,9 @@ func (c *Config) Validate() error {
 	}
 	if !c.S3.EnvAuth && (c.S3.AccessKey == "" || c.S3.SecretKey == "") {
 		return fmt.Errorf("S3 access_key/secret_key are required when env_auth is false")
+	}
+	if len(c.HotNodes) == 0 && c.Archive.NodeName == "" {
+		return fmt.Errorf("no hot nodes configured; set hot_nodes or provide POD_NAME for sidecar mode")
 	}
 	return nil
 }

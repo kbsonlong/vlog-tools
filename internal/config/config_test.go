@@ -13,6 +13,7 @@ func TestConfigValidation(t *testing.T) {
 
 	cfg.S3.Bucket = "test-bucket"
 	cfg.S3.EnvAuth = true
+	cfg.Archive.NodeName = "vlstorage-0"
 	err = cfg.Validate()
 	if err != nil {
 		t.Errorf("expected no error, got %v", err)
@@ -62,6 +63,12 @@ func TestApplySidecarDefaultsUsesPodName(t *testing.T) {
 	cfg.applySidecarDefaults()
 	if cfg.Archive.NodeName != "vlstorage-1" {
 		t.Fatalf("archive node name = %q", cfg.Archive.NodeName)
+	}
+	if cfg.Archive.NodeURL != "http://127.0.0.1:9428" {
+		t.Fatalf("archive node url = %q", cfg.Archive.NodeURL)
+	}
+	if cfg.Archive.SourceDataPath != "/var/lib/victorialogs" {
+		t.Fatalf("archive source data path = %q", cfg.Archive.SourceDataPath)
 	}
 	if len(cfg.HotNodes) != 1 {
 		t.Fatalf("hot_nodes len = %d", len(cfg.HotNodes))

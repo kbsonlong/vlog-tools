@@ -37,6 +37,10 @@ func NewArchiver(cfg *config.Config, store storage.Storage, meta *metadata.Manag
 func (a *Archiver) ArchivePartition(ctx context.Context, partition string) (*ArchiveResult, error) {
 	start := time.Now()
 
+	if len(a.config.HotNodes) == 0 {
+		return nil, fmt.Errorf("no hot nodes configured for archive; set hot_nodes or sidecar POD_NAME")
+	}
+
 	a.logger.Info("Starting partition archive",
 		zap.String("partition", partition),
 		zap.Int("nodes", len(a.config.HotNodes)))
