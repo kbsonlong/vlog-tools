@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"go.uber.org/zap"
@@ -37,6 +38,39 @@ func TestCreatePartitionSnapshot(t *testing.T) {
 		t.Fatalf("authKey = %q, want secret", gotAuthKey)
 	}
 	if len(paths) != 1 || paths[0] != "/data/vlstorage/snapshots/abc/20260621" {
+		t.Fatalf("paths = %#v", paths)
+	}
+}
+
+func TestCreatePartitionSnapshotFallsBackToLegacyNameArg(t *testing.T) {
+	var firstQuery string
+	var secondQuery string
+	callCount := 0
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		callCount++
+		if callCount == 1 {
+			firstQuery = r.URL.RawQuery
+			http.Error(w, `cannot create snapshot from partition "", because it is missing`, http.StatusBadRequest)
+			return
+		}
+		secondQuery = r.URL.RawQuery
+		_, _ = w.Write([]byte(`["/data/vlstorage/snapshots/abc/20260621"]`))
+	}))
+	defer srv.Close()
+
+	c := NewClient(srv.URL, zap.NewNop())
+	paths, err := c.CreatePartitionSnapshot(context.Background(), "20260621", "")
+	if err != nil {
+		t.Fatalf("CreatePartitionSnapshot() error = %v", err)
+	}
+	if !strings.Contains(firstQuery, "partition_prefix=20260621") {
+		t.Fatalf("first query = %q", firstQuery)
+	}
+	if !strings.Contains(secondQuery, "name=20260621") {
+		t.Fatalf("second query = %q", secondQuery)
+	}
+	if len(paths) != 1 {
 		t.Fatalf("paths = %#v", paths)
 	}
 }

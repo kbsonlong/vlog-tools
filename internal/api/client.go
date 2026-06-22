@@ -33,12 +33,28 @@ func NewClient(baseURL string, logger *zap.Logger) *Client {
 }
 
 func (c *Client) CreatePartitionSnapshot(ctx context.Context, partition string, authKey string) ([]string, error) {
+	paths, statusCode, body, err := c.createPartitionSnapshot(ctx, partition, authKey, "partition_prefix")
+	if err == nil {
+		return paths, nil
+	}
+	if statusCode == http.StatusBadRequest && strings.Contains(body, `partition ""`) {
+		return c.createPartitionSnapshotCompat(ctx, partition, authKey)
+	}
+	return nil, err
+}
+
+func (c *Client) createPartitionSnapshotCompat(ctx context.Context, partition string, authKey string) ([]string, error) {
+	paths, _, _, err := c.createPartitionSnapshot(ctx, partition, authKey, "name")
+	return paths, err
+}
+
+func (c *Client) createPartitionSnapshot(ctx context.Context, partition string, authKey string, partitionArg string) ([]string, int, string, error) {
 	u, err := url.Parse(c.baseURL + "/internal/partition/snapshot/create")
 	if err != nil {
-		return nil, err
+		return nil, 0, "", err
 	}
 	q := u.Query()
-	q.Set("partition_prefix", partition)
+	q.Set(partitionArg, partition)
 	if authKey != "" {
 		q.Set("authKey", authKey)
 	}
@@ -46,31 +62,31 @@ func (c *Client) CreatePartitionSnapshot(ctx context.Context, partition string, 
 
 	req, err := retryablehttp.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
 	if err != nil {
-		return nil, err
+		return nil, 0, "", err
 	}
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return nil, err
+		return nil, 0, "", err
 	}
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, err
+		return nil, 0, "", err
 	}
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("create partition snapshot: status=%d body=%s", resp.StatusCode, string(body))
+		return nil, resp.StatusCode, string(body), fmt.Errorf("create partition snapshot: status=%d body=%s", resp.StatusCode, string(body))
 	}
 
 	var paths []string
 	if err := json.Unmarshal(body, &paths); err != nil {
-		return nil, fmt.Errorf("decode partition snapshot response %q: %w", string(body), err)
+		return nil, resp.StatusCode, string(body), fmt.Errorf("decode partition snapshot response %q: %w", string(body), err)
 	}
 	if len(paths) == 0 {
-		return nil, fmt.Errorf("create partition snapshot: empty snapshot list for partition %s", partition)
+		return nil, resp.StatusCode, string(body), fmt.Errorf("create partition snapshot: empty snapshot list for partition %s", partition)
 	}
-	return paths, nil
+	return paths, resp.StatusCode, string(body), nil
 }
 
 func (c *Client) DeletePartitionSnapshot(ctx context.Context, snapshotPath string, authKey string) error {
