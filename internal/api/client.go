@@ -79,14 +79,31 @@ func (c *Client) createPartitionSnapshot(ctx context.Context, partition string, 
 		return nil, resp.StatusCode, string(body), fmt.Errorf("create partition snapshot: status=%d body=%s", resp.StatusCode, string(body))
 	}
 
-	var paths []string
-	if err := json.Unmarshal(body, &paths); err != nil {
+	paths, err := decodeSnapshotPaths(body)
+	if err != nil {
 		return nil, resp.StatusCode, string(body), fmt.Errorf("decode partition snapshot response %q: %w", string(body), err)
 	}
 	if len(paths) == 0 {
 		return nil, resp.StatusCode, string(body), fmt.Errorf("create partition snapshot: empty snapshot list for partition %s", partition)
 	}
 	return paths, resp.StatusCode, string(body), nil
+}
+
+func decodeSnapshotPaths(body []byte) ([]string, error) {
+	var paths []string
+	if err := json.Unmarshal(body, &paths); err == nil {
+		return paths, nil
+	}
+
+	var path string
+	if err := json.Unmarshal(body, &path); err == nil {
+		if path == "" {
+			return nil, nil
+		}
+		return []string{path}, nil
+	}
+
+	return nil, fmt.Errorf("unsupported snapshot response format")
 }
 
 func (c *Client) DeletePartitionSnapshot(ctx context.Context, snapshotPath string, authKey string) error {

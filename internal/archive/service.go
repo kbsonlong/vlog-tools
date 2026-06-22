@@ -159,7 +159,7 @@ func (a *Archiver) archiveFromNode(ctx context.Context, node config.NodeConfig, 
 			uploadResult, uploadErr = a.storage.CopyToS3(ctx, localSnapshotPath, s3Path)
 		}
 
-		if err := vl.DeletePartitionSnapshot(ctx, snapshotPath, a.config.Archive.PartitionAuthKey); err != nil {
+		if err := cleanupSnapshot(ctx, vl, snapshotPath, localSnapshotPath, a.config.Archive.PartitionAuthKey); err != nil {
 			a.logger.Warn("Failed to delete partition snapshot",
 				zap.String("node", node.Name),
 				zap.String("partition", partition),
@@ -217,6 +217,20 @@ func resolveSnapshotPath(snapshotPath string, localDataPath string) (string, err
 		return "", err
 	}
 	return mappedPath, nil
+}
+
+func cleanupSnapshot(ctx context.Context, vl *api.Client, snapshotPath, localSnapshotPath, authKey string) error {
+	if err := vl.DeletePartitionSnapshot(ctx, snapshotPath, authKey); err == nil {
+		return nil
+	}
+
+	if localSnapshotPath == "" {
+		return fmt.Errorf("delete snapshot via api failed and no local snapshot path available")
+	}
+	if err := os.RemoveAll(localSnapshotPath); err != nil {
+		return fmt.Errorf("delete snapshot via api failed and local cleanup failed: %w", err)
+	}
+	return nil
 }
 
 type NodeArchiveResult struct {

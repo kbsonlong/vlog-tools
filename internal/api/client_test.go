@@ -75,6 +75,22 @@ func TestCreatePartitionSnapshotFallsBackToLegacyNameArg(t *testing.T) {
 	}
 }
 
+func TestCreatePartitionSnapshotAcceptsLegacyStringResponse(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`"/data/vlstorage/partitions/20260615/snapshots/20260622042145-18BB4C3EF96BF016"`))
+	}))
+	defer srv.Close()
+
+	c := NewClient(srv.URL, zap.NewNop())
+	paths, err := c.CreatePartitionSnapshot(context.Background(), "20260615", "")
+	if err != nil {
+		t.Fatalf("CreatePartitionSnapshot() error = %v", err)
+	}
+	if len(paths) != 1 || paths[0] != "/data/vlstorage/partitions/20260615/snapshots/20260622042145-18BB4C3EF96BF016" {
+		t.Fatalf("paths = %#v", paths)
+	}
+}
+
 func TestDeletePartitionSnapshot(t *testing.T) {
 	var gotPath string
 	var gotSnapshotPath string
